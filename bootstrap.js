@@ -132,6 +132,60 @@
     window.addEventListener("load", run);
   }
 
+  // ── 4. One header, not two ────────────────────────────────────────────────
+  //
+  // Kodama already draws a title bar with the window buttons, so this page's own header is a
+  // second one saying the same thing: a logo and the word Composer, above a row of tabs. It goes,
+  // and the three buttons that lived in it move down into the tab row.
+  //
+  // Done by POSITION, not by moving nodes. Lifting the button group out of the header and
+  // appending it to the tab bar would work until React re-rendered the header and put it back.
+  // Taking the header out of flow and laying it over the right end of the tab row survives that,
+  // because nothing about the tree has changed.
+  //
+  // Both elements are found by things upstream chose deliberately: the <header> element itself,
+  // and data-tour="tab-bar", which exists for the product tour. Utility classes change whenever
+  // the styling does; neither of these does.
+  function oneHeader() {
+    var css = document.createElement("style");
+    css.id = "__kodama_chrome";
+    css.textContent = [
+      "header{position:fixed!important;top:0;right:0;z-index:5;",
+      "border:0!important;background:transparent!important;",
+      "padding:0 8px!important;display:flex!important;align-items:center!important}",
+      "header>h1{display:none!important}",
+    ].join("");
+
+    // The two measurements this needs are read off the page rather than guessed: how tall the tab
+    // row is, so the buttons sit on its line, and how wide the buttons are, so no tab ends up
+    // underneath them. Guessed numbers would be wrong the first time upstream changed a padding.
+    var fit = function () {
+      var header = document.querySelector("header");
+      var nav = document.querySelector('nav[data-tour="tab-bar"]');
+      if (!header || !nav) return false;
+      header.style.setProperty("height", nav.offsetHeight + "px", "important");
+      nav.style.setProperty("padding-right", Math.ceil(header.offsetWidth) + "px", "important");
+      return true;
+    };
+
+    var put = function () {
+      var h = document.head || document.documentElement;
+      if (h && !document.getElementById("__kodama_chrome")) h.appendChild(css);
+      return fit();
+    };
+
+    if (!put()) {
+      // The app mounts after this script runs, so the elements are not there yet. Watched rather
+      // than polled, and the watch stops as soon as both have been found and measured.
+      var obs = new MutationObserver(function () { if (put()) obs.disconnect(); });
+      obs.observe(document.documentElement, { childList: true, subtree: true });
+      // A page that never renders a tab bar should not be watched forever.
+      setTimeout(function () { obs.disconnect(); }, 15000);
+    }
+    window.addEventListener("resize", fit);
+  }
+
+  oneHeader();
   font();
   call("appearance.get").then(paint).catch(function () {
     // Kodama did not answer, or did not grant it. The Composer keeps its own colours, which is a
