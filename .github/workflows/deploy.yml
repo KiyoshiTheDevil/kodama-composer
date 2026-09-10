@@ -1,0 +1,106 @@
+name: Deploy Composer
+
+# Builds better-lyrics/composer at the commit named in .composer-version and publishes it to
+# composer.kiyoshi.dev. Nothing of the Composer's source lives in this repo, which is the point:
+# an upgrade is one line in .composer-version and no merge conflicts, because there is no fork.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  # Weekly, so a deployment that only breaks because of something upstream is found on a Monday
+  # rather than the next time someone happens to push.
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and a newer push wins: two builds racing would publish whichever
+# finished last rather than whichever was newest.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: Read the pinned commit
+        id: pin
+        run: echo "sha=$(grep -v '^#' .composer-version | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Check out Composer at that commit
+        uses: actions/checkout@v4
+        with:
+          repository: better-lyrics/composer
+          ref: ${{ steps.pin.outputs.sha }}
+          path: upstream
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: upstream/pnpm-lock.yaml
+
+      # --frozen-lockfile so a build is the same build twice. Without it pnpm would quietly
+      # resolve newer dependencies and the deployed site would stop matching the pinned commit.
+      - name: Install
+        working-directory: upstream
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        working-directory: upstream
+        run: pnpm build
+
+      - name: Put Kodama's bootstrap in front of the app's own scripts
+        run: |
+          cp bootstrap.js upstream/dist/kodama-bootstrap.js
+          python3 - <<'PY'
+          import pathlib
+          TAG = '<script src="/kodama-bootstrap.js"></script>'
+          # Every page, not just the entry: vite-react-ssg pre-renders each route to its own
+          # HTML file, and Kodama may frame any of them.
+          pages = list(pathlib.Path("upstream/dist").rglob("*.html"))
+          for p in pages:
+              html = p.read_text(encoding="utf-8")
+              if TAG in html:
+                  continue
+              # Before </head>, so the bridge settings are seeded before the app reads them.
+              if "</head>" in html:
+                  html = html.replace("</head>", TAG + "</head>", 1)
+              elif "<body>" in html:
+                  html = html.replace("<body>", "<body>" + TAG, 1)
+              else:
+                  html = TAG + html
+              p.write_text(html, encoding="utf-8")
+          print(f"bootstrap injected into {len(pages)} page(s)")
+          # A build that produced no HTML is a broken build, and publishing it would replace a
+          # working site with an empty one.
+          assert pages, "no HTML in dist/"
+          PY
+
+      - name: Custom domain
+        run: cp CNAME upstream/dist/CNAME
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: upstream/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

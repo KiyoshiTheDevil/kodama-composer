@@ -1,0 +1,6 @@
+# The upstream commit this site is built from.
+#
+# better-lyrics/composer publishes no tags, so a commit is the only thing that pins a build.
+# Upgrading is this line and nothing else: change it, push, the workflow rebuilds and deploys.
+# package.json at this commit says 1.41.1.
+f8f3a609ab80f040090f3fa77252876b59aab886
