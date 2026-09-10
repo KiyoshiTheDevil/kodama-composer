@@ -21,6 +21,17 @@ gh api repos/better-lyrics/composer/commits/master --jq '.sha'
 Upstream publishes no tags, so a commit hash is the only thing that pins a build. The comment in
 `.composer-version` records which release number that commit called itself.
 
+## Pages settings
+
+Two things have to be set once, in Settings, Pages:
+
+- **Source: GitHub Actions.** Not a branch: the site has to be built.
+- **Custom domain: `composer.kiyoshi.dev`.** The `CNAME` file in this repo is copied into the
+  artifact, but a deployment made by Actions does not read it, unlike a branch deployment. The
+  domain lives in the settings, and the file is there so the two do not disagree.
+
+DNS is a CNAME record, host `composer`, pointing at `kiyoshithedevil.github.io.`
+
 ## What this repo adds
 
 `bootstrap.js`, injected into every built page. It does two things, and only when the page is
