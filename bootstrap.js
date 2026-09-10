@@ -132,41 +132,6 @@
     window.addEventListener("load", run);
   }
 
-  // ── 4. Room for Kodama's window buttons, and dragging by this header ───────
-  //
-  // Kodama draws no bar of its own: two stacked headers is what a framed app looks like when the
-  // host insists on its own chrome. Its window buttons float over the top-right of this page
-  // instead, so this page has to leave them room.
-  //
-  // Targeted at the <header> element rather than a class name. Upstream builds its classes with a
-  // utility framework, so the names change whenever the styling does; the element does not.
-  function chrome() {
-    var css = document.createElement("style");
-    css.id = "__kodama_chrome";
-    // The buttons are three 40px-wide controls with a little air around them.
-    css.textContent = "header{padding-right:150px !important}";
-    var put = function () {
-      var h = document.head || document.documentElement;
-      if (h && !document.getElementById("__kodama_chrome")) h.appendChild(css);
-    };
-    put();
-    document.addEventListener("DOMContentLoaded", put);
-
-    // A Tauri drag region belongs to a webview, and this frame is not one, so the gesture is
-    // forwarded instead: the header says a drag began and Kodama moves its own window. Kodama
-    // never hands over a window object, only answers this one question.
-    document.addEventListener("mousedown", function (e) {
-      if (e.button !== 0) return;
-      var header = e.target.closest && e.target.closest("header");
-      if (!header) return;
-      // Anything that does something of its own keeps doing it. Without this, the settings and
-      // help buttons in the corner would move the window instead of opening.
-      if (e.target.closest("button, a, input, select, textarea, [role=button], [contenteditable]")) return;
-      call("window.drag").catch(function () {});
-    });
-  }
-
-  chrome();
   font();
   call("appearance.get").then(paint).catch(function () {
     // Kodama did not answer, or did not grant it. The Composer keeps its own colours, which is a
