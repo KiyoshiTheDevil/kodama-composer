@@ -96,14 +96,18 @@ jobs:
         run: |
           cp bootstrap.js upstream/dist/kodama-bootstrap.js
           python3 - <<'PY'
-          import pathlib
-          TAG = '<script src="/kodama-bootstrap.js"></script>'
+          import pathlib, os
+          # The URL carries this deployment's commit. GitHub Pages serves everything with
+          # max-age=600 and gives no way to change that, so without this a browser keeps the
+          # previous bootstrap for up to ten minutes after a deploy and the change looks like it
+          # simply did not happen. A version in the path means a new script is never a stale URL.
+          TAG = f'<script src="/kodama-bootstrap.js?v={os.environ["GITHUB_SHA"][:12]}"></script>'
           # Every page, not just the entry: vite-react-ssg pre-renders each route to its own
           # HTML file, and Kodama may frame any of them.
           pages = list(pathlib.Path("upstream/dist").rglob("*.html"))
           for p in pages:
               html = p.read_text(encoding="utf-8")
-              if TAG in html:
+              if "kodama-bootstrap.js" in html:
                   continue
               # Before </head>, so the bridge settings are seeded before the app reads them.
               if "</head>" in html:
