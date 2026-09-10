@@ -46,6 +46,11 @@ framed by Kodama:
 Opened directly in a browser, the bootstrap does nothing at all and the site behaves exactly like
 upstream.
 
+The workflow also takes the Google Analytics tags out of every built page. Upstream hardcodes a
+GA4 property, so a self-hosted copy would send its visitors' page views to an account nobody here
+controls or can read. It is cleaner for upstream too: their numbers would otherwise mix in traffic
+from a site they do not serve. Only page views were ever sent, upstream calls no custom events.
+
 ## Licence
 
 Composer is AGPL-3.0, which permits self-hosting. This repo carries the recipe rather than the

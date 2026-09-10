@@ -61,6 +61,37 @@ jobs:
         working-directory: upstream
         run: pnpm build
 
+      - name: Take out the analytics
+        # Upstream hardcodes a Google Analytics 4 property (src/seo/analytics.tsx), so a
+        # self-hosted copy inherits it: our visitors' page views would go to an account we
+        # neither control nor can read. It is also cleaner for upstream, whose numbers would
+        # otherwise mix traffic from a site they do not serve.
+        #
+        # Only page views were ever sent. A search of upstream finds no gtag('event') calls, so
+        # nothing about what anyone does inside the Composer was being reported.
+        run: |
+          python3 - <<'PY'
+          import pathlib, re
+          removed = 0
+          for p in pathlib.Path("upstream/dist").rglob("*.html"):
+              html = p.read_text(encoding="utf-8")
+              before = html
+              # The loader, matched on the host rather than on the property id: a new id would
+              # otherwise walk straight through.
+              html = re.sub(r'<script[^>]*googletagmanager\.com[^>]*>\s*</script>', "", html)
+              # And the inline configuration beside it.
+              html = re.sub(r'<script(?![^>]*src=)[^>]*>(?:(?!</script>).)*?(?:dataLayer|gtag\().*?</script>', "", html, flags=re.S)
+              if html != before:
+                  p.write_text(html, encoding="utf-8")
+                  removed += 1
+          print(f"analytics removed from {removed} page(s)")
+          # The invariant, checked rather than assumed: nothing analytics-shaped survives. A
+          # silent no-op here would look exactly like success.
+          left = [str(p) for p in pathlib.Path("upstream/dist").rglob("*.html")
+                  if "googletagmanager" in p.read_text(encoding="utf-8")]
+          assert not left, f"analytics still present in {left[:3]}"
+          PY
+
       - name: Put Kodama's bootstrap in front of the app's own scripts
         run: |
           cp bootstrap.js upstream/dist/kodama-bootstrap.js
